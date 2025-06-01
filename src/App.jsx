@@ -1,17 +1,16 @@
 import { Routes, Route } from "react-router-dom";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
-import DashboardPage from "./pages/DashboardPage.jsx";
+import DashboardPage from "./pages/VoiceAssistant.jsx";
 import Home from "./pages/Home.jsx";
 import Founder from "./components/Founder.jsx";
 import { ToastContainer } from "react-toastify";
-import { UserButton } from '@clerk/clerk-react';
+import Navbar from "./components/Navbar.jsx";
 
 function App() {
   return (
     <>
       <ToastContainer position="top-right" autoClose={2000} />
-      <div className="min-h-screen flex flex-col items-center justify-center relative">
-        <UserButton className="absolute top-4 right-4" />
+      <div >
         <Routes>
           <Route
             path="/"
@@ -39,8 +38,9 @@ function App() {
               </>
             }
           />
-
           <Route path="/founder" element={<Founder />} />
+          <Route path="/navbar" element={<Navbar />} />
+
         </Routes>
       </div>
     </>
