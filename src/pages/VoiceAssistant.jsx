@@ -13,7 +13,7 @@ const VoiceAssistant = () => {
     const loadVoices = () => {
       const allVoices = window.speechSynthesis.getVoices();
       setVoices(allVoices);
-      console.log("Available voices:", allVoices);
+      setSelectedVoice(allVoices[0]);
     };
 
     if (typeof window !== "undefined") {
@@ -22,7 +22,7 @@ const VoiceAssistant = () => {
     }
   }, []);
 
-  const speak = () => {
+  const speak = (text) => {
     if (!text || !selectedVoice) return;
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -33,15 +33,6 @@ const VoiceAssistant = () => {
 
     window.speechSynthesis.speak(utterance);
   };
-  // // Speak function
-  // const speak = (text) => {
-  //   console.log("Speaking:", text);
-  //   const text_speak = new SpeechSynthesisUtterance(text);
-  //   text_speak.pitch = 1;
-  //   text_speak.rate = 1;
-  //   text_speak.volume = 1;
-  //   window.speechSynthesis.speak(text_speak);
-  // };
 
   const wishMe = () => {
     const hours = new Date().getHours();
@@ -54,8 +45,6 @@ const VoiceAssistant = () => {
 
   const takeCommand = (msg) => {
     const message = msg.toLowerCase();
-    console.log("takeCommand called with message:", message);
-
     if (message.includes("hello")) {
       speak("Hello Sir, How can I assist you today?");
     } else if (message.includes("who are you")) {
@@ -135,12 +124,10 @@ const VoiceAssistant = () => {
 
     recognition.onstart = () => {
       setListening(true);
-      console.log("Recognition started");
     };
 
     recognition.onend = () => {
       setListening(false);
-      console.log("Recognition ended");
     };
 
     recognition.onerror = (event) => {
@@ -153,8 +140,6 @@ const VoiceAssistant = () => {
       contentRef.current.innerText = result;
       takeCommand(result);
     };
-
-    wishMe();
   }, []);
 
   const toggleListening = () => {
@@ -163,9 +148,9 @@ const VoiceAssistant = () => {
       recognition.stop();
     } else {
       recognition.start();
+      wishMe();
     }
   };
-
 
 return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row items-center justify-center gap-10 p-6">
@@ -178,10 +163,6 @@ return (
         transition={{ duration: 0.7, ease: "easeOut" }}
       >
         <h2 className="text-xl font-semibold mb-4 border-b pb-2">💡 Suggestions</h2>
-                <p className="text-gray-700 mb-4">
-          Here you can add extra features or tips for your assistant.
-          Maybe some quick commands or info about the app.
-        </p>
         <ul className="list-disc list-inside space-y-2 text-gray-700">
           <li>Try asking about today's weather</li>
           <li>Set a reminder or alarm</li>
@@ -246,7 +227,7 @@ return (
           transition={{ delay: 0.5 }}
         >
           <p className="text-sm text-gray-500 mb-2">You said:</p>
-          <p className="font-medium text-gray-900 break-words">{transcript || "..."}</p>
+          <p ref={contentRef} className="font-medium text-gray-900 break-words">{transcript || "..."}</p>
         </motion.div>
       </motion.div>
 
@@ -270,13 +251,8 @@ return (
           <li>Review and update your privacy settings regularly.</li>
         </ul>
       </motion.div>
-
     </div>
-
-);
-
-
+  );
 };
-
 
 export default VoiceAssistant;
