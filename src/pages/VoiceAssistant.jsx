@@ -1,20 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
 
 const VoiceAssistant = () => {
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
-  const [wished, setWished] = useState(false);
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [text, setText] = useState("");
+  const [isActive, setIsActive] = useState(false);
+  const [lastCommand, setLastCommand] = useState("");
   const recognitionRef = useRef(null);
   const contentRef = useRef(null);
+  const [conversationHistory, setConversationHistory] = useState([]);
+
   useEffect(() => {
     const loadVoices = () => {
       const allVoices = window.speechSynthesis.getVoices();
       setVoices(allVoices);
-      setSelectedVoice(allVoices[0]);
+      // Try to find an English voice
+      const englishVoice = allVoices.find(voice => voice.lang.includes('en'));
+      setSelectedVoice(englishVoice || allVoices[0]);
     };
 
     if (typeof window !== "undefined") {
@@ -26,48 +29,67 @@ const VoiceAssistant = () => {
   const speak = (text) => {
     if (!text || !selectedVoice) return;
 
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.voice = selectedVoice;
     utterance.pitch = 1;
-    utterance.rate = 1;
+    utterance.rate = 0.9;
     utterance.volume = 1;
 
     window.speechSynthesis.speak(utterance);
+    
+    // Add to conversation history
+    setConversationHistory(prev => [...prev, { type: 'assistant', text }]);
   };
 
   const wishMe = () => {
     const hours = new Date().getHours();
-    console.log("wishme called at hour:", hours);
-    if (hours < 12) speak("Subah ki raam raam Sir");
-    else if (hours <= 16) speak("Good Afternoon Sir");
-    else if (hours <= 19) speak("Good Evening Sir");
-    else speak("Itni raat ko kese yaad kiya Sir");
+    let greeting = "";
+    if (hours < 12) greeting = "Good Morning! How can I help you today?";
+    else if (hours <= 16) greeting = "Good Afternoon! How can I assist you?";
+    else if (hours <= 19) greeting = "Good Evening! What can I do for you?";
+    else greeting = "Good Night! How may I help you?";
+    
+    speak(greeting);
   };
 
   const takeCommand = (msg) => {
-    const message = msg.toLowerCase();
-    if (message.includes("hello")) {
-      speak("Hello Sir, How can I assist you today?");
-    } else if (message.includes("who are you")) {
-      speak("I am your virtual assistant made by Sandeep Sir.");
-    } else if (message.includes("search")) {
-      const query = message.replace("search", "").trim();
-      speak(`Searching Google for ${query}`);
-      window.open(`https://www.google.com/search?q=${query}`, "_blank");
-    } else if (message.includes("play")) {
+    const message = msg.toLowerCase().trim();
+    setLastCommand(message);
+    
+    // Add user command to conversation history
+    setConversationHistory(prev => [...prev, { type: 'user', text: msg }]);
+
+    if (message.includes("hello") || message.includes("hi")) {
+      speak("Hello! How can I assist you today?");
+    } 
+    else if (message.includes("who are you") || message.includes("what are you")) {
+      speak("I am your voice assistant. I can help you with various tasks like searching the web, opening websites, telling time, and much more!");
+    } 
+    else if (message.includes("search")) {
+      const query = message.replace("search", "").replace("for", "").trim();
+      if (query) {
+        speak(`Searching Google for ${query}`);
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, "_blank");
+      } else {
+        speak("What would you like me to search for?");
+      }
+    } 
+    else if (message.includes("play")) {
       const query = message.replace("play", "").trim();
-      speak(`Playing ${query} on YouTube`);
-      window.open(
-        `https://www.youtube.com/results?search_query=${query}`,
-        "_blank"
-      );
-    } else if (message.includes("open")) {
+      if (query) {
+        speak(`Playing ${query} on YouTube`);
+        window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank");
+      } else {
+        speak("What would you like me to play?");
+      }
+    } 
+    else if (message.includes("open")) {
       const words = message.split(" ");
       const openIndex = words.indexOf("open");
-      const query = words
-        .slice(openIndex + 1)
-        .join(" ")
-        .trim();
+      const query = words.slice(openIndex + 1).join(" ").trim();
 
       const predefinedApps = {
         youtube: "https://www.youtube.com",
@@ -78,229 +100,317 @@ const VoiceAssistant = () => {
         facebook: "https://www.facebook.com",
         linkedin: "https://www.linkedin.com",
         whatsapp: "https://web.whatsapp.com",
+        netflix: "https://www.netflix.com",
+        gmail: "https://mail.google.com",
+        maps: "https://maps.google.com"
       };
 
       if (predefinedApps[query]) {
         speak(`Opening ${query}`);
         window.open(predefinedApps[query], "_blank");
-      } else if (message.includes("weather")) {
-        speak("Fetching current weather from Google");
-        window.open(
-          "https://www.google.com/search?q=current+weather",
-          "_blank"
-        );
-      } else if (query.match(/\.\w{2,}(\.\w{2,})?$/)) {
-        speak(`Opening ${query}`);
-        window.open(`https://${query}`, "_blank");
       } else if (query) {
-        const dynamicUrl = `https://${query.replace(/\s+/g, "")}.com`;
         speak(`Opening ${query}`);
-        window.open(dynamicUrl, "_blank");
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, "_blank");
       } else {
-        const finalText = `This is what I found on internet regarding ${message}`;
-        speak(finalText);
-        window.open(`https://www.google.com/search?q=${message}`, "_blank");
+        speak("What would you like me to open?");
       }
-    } else if (message.includes("time")) {
+    }
+    else if (message.includes("weather")) {
+      speak("Getting current weather information");
+      window.open("https://www.google.com/search?q=current+weather", "_blank");
+    }
+    else if (message.includes("news")) {
+      speak("Opening latest news");
+      window.open("https://news.google.com", "_blank");
+    }
+    else if (message.includes("time")) {
       const now = new Date();
       let hours = now.getHours();
       let minutes = now.getMinutes();
       let ampm = hours >= 12 ? "PM" : "AM";
       hours = hours % 12 || 12;
-      const timeString = `${hours}:${
-        minutes < 10 ? "0" + minutes : minutes
-      } ${ampm}`;
-      speak("The time is " + timeString);
-    } else if (message.includes("date")) {
-      const dateString = new Date().toDateString();
-      speak("The date is " + dateString);
-    } else if (message.includes("help") || message.includes("commands")) {
-      speak(
-        "You can say: open YouTube, what is the time, what is the date, or say hello."
-      );
-    } else {
-      const badWords = [
-        "madarchod",
-        "behenchod",
-        "chutiya",
-        "gandu",
-        "fuck",
-        "shit",
-        "bitch",
+      const timeString = `${hours}:${minutes < 10 ? "0" + minutes : minutes} ${ampm}`;
+      speak(`The current time is ${timeString}`);
+    } 
+    else if (message.includes("date")) {
+      const now = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const dateString = now.toLocaleDateString('en-US', options);
+      speak(`Today is ${dateString}`);
+    } 
+    else if (message.includes("help") || message.includes("commands")) {
+      speak("I can help you with many things! You can say: open YouTube, search for something, play music, tell me the time or date, get weather information, open news, or just have a conversation with me!");
+    }
+    else if (message.includes("stop") || message.includes("quit") || message.includes("exit")) {
+      speak("Goodbye! It was nice talking with you.");
+      setIsActive(false);
+      setListening(false);
+    }
+    else if (message.includes("thank you") || message.includes("thanks")) {
+      speak("You're welcome! Is there anything else I can help you with?");
+    }
+    else if (message.includes("joke")) {
+      const jokes = [
+        "Why don't scientists trust atoms? Because they make up everything!",
+        "Why did the scarecrow win an award? He was outstanding in his field!",
+        "Why don't eggs tell jokes? They'd crack each other up!",
+        "What do you call a fake noodle? An impasta!",
+        "Why did the coffee file a police report? It got mugged!"
       ];
-      if (badWords.some((word) => message.includes(word))) {
-        speak(
-          "Bhai, itni bakwaas mt kar warna teri saali ka bhowsda khol duuunga!"
-        );
-      } else {
-        speak("Sorry, I didn't understand that command.");
+      const randomJoke = jokes[Math.floor(Math.random() * jokes.length)];
+      speak(randomJoke);
+    }
+    else if(message.include("baat")){
+      // General conversation response
+      const responses = [
+        "That's interesting! Can you tell me more?",
+        "I understand. How can I help you with that?",
+        "I'm here to assist you. What would you like to do?",
+        "I'm not sure about that, but I can help you search for information if you'd like.",
+        "That sounds important. Would you like me to search for more information about it?"
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      speak(randomResponse);
+    }else {
+  const badWords = ["madarchod", "behenchod", "chutiya", "gandu", "fuck", "shit", "bitch"];
+  if (badWords.some((word) => message.includes(word))) {
+    speak("Bhai, itni bakwaas mt kar warna teri saali ka bhowsda khol duuunga!");
+  }
+  };
+};
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Setup speech recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      setListening(true);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      // Restart recognition if still active
+      if (isActive) {
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (error) {
+            console.log("Recognition restart error:", error);
+          }
+        }, 1000);
       }
-    }
-  };
+    };
 
-useEffect(() => {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognitionRef.current = recognition;
+    recognition.onerror = (event) => {
+      console.error("Recognition error:", event.error);
+      setListening(false);
+    };
 
-  recognition.continuous = true;          // 🎧 Keep listening always
-  recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const result = event.results[event.resultIndex][0].transcript;
+      setTranscript(result);
+      if (contentRef.current) {
+        contentRef.current.innerText = result;
+      }
+      takeCommand(result);
+    };
 
-  recognition.onstart = () => setListening(true);
+    return () => {
+      if (recognition) {
+        recognition.stop();
+      }
+    };
+  }, [isActive]);
 
-  recognition.onend = () => {
-    setListening(false);
-    recognition.start();                 // 🔄 Auto-restart
-  };
-
-  recognition.onerror = (event) => {
-    console.error("Recognition error:", event.error);
-    recognition.start();                 // 🔄 Recover on error
-  };
-
-  recognition.onresult = (event) => {
-    const result = event.results[event.resultIndex][0].transcript;
-    setTranscript(result);
-    if (contentRef.current) {
-      contentRef.current.innerText = result;
-    }
-    takeCommand(result);
-  };
-
-  // 🧠 Optional wish only once
-  speak("Voice assistant activated");
-  wishMe();
-  recognition.start();                   // 🔥 Auto start on page load
-}, []);
-
-
-
-  const toggleListening = () => {
+  const toggleAssistant = () => {
     const recognition = recognitionRef.current;
-    if (listening) {
+    if (!recognition) return;
+
+    if (isActive) {
+      // Stop the assistant
+      setIsActive(false);
+      setListening(false);
       recognition.stop();
+      speak("Jarvis deactivated. Goodbye!");
     } else {
-      recognition.start();
-      speak("Voice assistant activated");
-      if (!wished) {
-        wishMe();
-        setWished(true); // ✅ Ab dobara wish nahi karega
+      // Start the assistant
+      setIsActive(true);
+      try {
+        recognition.start();
+        speak("Jarvis activated!");
+        setTimeout(() => {
+          wishMe();
+        }, 2000);
+      } catch (error) {
+        console.error("Failed to start recognition:", error);
+        setIsActive(false);
       }
+    }
+  };
+
+  const clearHistory = () => {
+    setConversationHistory([]);
+    setTranscript("");
+    setLastCommand("");
+    if (contentRef.current) {
+      contentRef.current.innerText = "";
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row items-center justify-center gap-10 p-6">
-      {/* Left Box - Suggestions */}
-      <motion.div
-        className="w-full md:w-1/4 bg-white rounded-xl shadow-lg p-6 text-gray-800 font-sans"
-        initial={{ opacity: 0, x: -30 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-      >
-        <h2 className="text-xl font-semibold mb-4 border-b pb-2">
-          💡 Suggestions
-        </h2>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
-          <li>Try asking about today's weather</li>
-          <li>Set a reminder or alarm</li>
-          <li>Ask for latest news headlines</li>
-          <li>Get a quick math calculation</li>
-          <li>Play your favorite song</li>
-        </ul>
-      </motion.div>
-
-      {/* Center Box - Voice Assistant */}
-      <motion.div
-        className="w-full md:w-1/3 bg-gray-100 rounded-xl shadow-lg p-8 font-sans text-gray-900"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-      >
-        <motion.h1
-          className="text-3xl font-semibold flex items-center gap-4 mb-6"
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">
           🎙️ Voice Assistant
-        </motion.h1>
+        </h1>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Left Panel - Suggestions */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+              💡 Try These Commands
+            </h2>
+            <div className="space-y-2 text-sm text-gray-600">
+              <div className="p-2 bg-blue-50 rounded">• "Hello" - Greet the assistant</div>
+              <div className="p-2 bg-green-50 rounded">• "What time is it?" - Get current time</div>
+              <div className="p-2 bg-yellow-50 rounded">• "Search for cats" - Search Google</div>
+              <div className="p-2 bg-purple-50 rounded">• "Play music" - Open YouTube</div>
+              <div className="p-2 bg-pink-50 rounded">• "Open Gmail" - Open websites</div>
+              <div className="p-2 bg-indigo-50 rounded">• "Tell me a joke" - Get a joke</div>
+              <div className="p-2 bg-orange-50 rounded">• "What's the weather?" - Check weather</div>
+              <div className="p-2 bg-red-50 rounded">• "Stop" - Deactivate assistant</div>
+            </div>
+          </div>
 
-        <div>
-          <label className="block mb-3 font-medium text-gray-700">
-            Select Voice:
-          </label>
-          <motion.select
-            value={selectedVoice?.name || ""}
-            onChange={(e) =>
-              setSelectedVoice(
-                voices.find((voice) => voice.name === e.target.value)
-              )
-            }
-            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition shadow-sm mb-6"
-            whileFocus={{ scale: 1.03 }}
-          >
-            {voices.map((voice, idx) => (
-              <option key={idx} value={voice.name}>
-                {voice.name} ({voice.lang})
-              </option>
-            ))}
-          </motion.select>
+          {/* Center Panel - Main Controls */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="text-center mb-6">
+              <div className="mb-4">
+                <label className="block mb-2 font-medium text-gray-700">Select Voice:</label>
+                <select
+                  value={selectedVoice?.name || ""}
+                  onChange={(e) =>
+                    setSelectedVoice(voices.find((voice) => voice.name === e.target.value))
+                  }
+                  className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {voices.map((voice, idx) => (
+                    <option key={idx} value={voice.name}>
+                      {voice.name} ({voice.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={toggleAssistant}
+                className={`w-full py-4 px-6 rounded-xl font-semibold text-white text-lg transition-all duration-300 ${
+                  isActive
+                    ? "bg-red-500 hover:bg-red-600 shadow-lg transform hover:scale-105"
+                    : "bg-blue-500 hover:bg-blue-600 shadow-lg transform hover:scale-105"
+                }`}
+              >
+                {isActive ? "🛑 Stop Assistant" : "🎤 Start Assistant"}
+              </button>
+
+              <div className="mt-4 flex justify-center items-center space-x-4">
+                <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <span className="text-sm text-gray-600">
+                  {isActive ? (listening ? "Listening..." : "Active") : "Inactive"}
+                </span>
+                <div className={`w-3 h-3 rounded-full ${listening ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`}></div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg min-h-[120px] border">
+              <p className="text-sm text-gray-500 mb-2">Current Command:</p>
+              <p ref={contentRef} className="font-medium text-gray-900 break-words">
+                {transcript || "Say something..."}
+              </p>
+              {lastCommand && (
+                <div className="mt-2 pt-2 border-t">
+                  <p className="text-xs text-gray-500">Last: "{lastCommand}"</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Panel - Status & Controls */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+              📊 Status & Controls
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600">Status</div>
+                <div className="font-semibold text-gray-800">
+                  {isActive ? "🟢 Active" : "🔴 Inactive"}
+                </div>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600">Listening</div>
+                <div className="font-semibold text-gray-800">
+                  {listening ? "🎤 Yes" : "🔇 No"}
+                </div>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600">Commands Processed</div>
+                <div className="font-semibold text-gray-800">
+                  {conversationHistory.filter(h => h.type === 'user').length}
+                </div>
+              </div>
+
+              <button
+                onClick={clearHistory}
+                className="w-full py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Clear History
+              </button>
+            </div>
+          </div>
         </div>
 
-        <motion.button
-          onClick={toggleListening}
-          className={`w-full py-3 rounded-lg font-semibold text-white shadow-md
-            ${
-              listening
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }
-          `}
-          whileTap={{ scale: 0.96 }}
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 250 }}
-          aria-pressed={listening}
-          aria-label={listening ? "Stop listening" : "Start listening"}
-        >
-          {listening ? "🛑 Stop Listening" : "🎤 Start Listening"}
-        </motion.button>
-
-        <motion.div
-          className="bg-white p-6 rounded-xl border border-gray-200 min-h-[100px] shadow-inner mt-6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          <p className="text-sm text-gray-500 mb-2">You said:</p>
-          <p ref={contentRef} className="font-medium text-gray-900 break-words">
-            {transcript || "..."}
-          </p>
-        </motion.div>
-      </motion.div>
-
-      {/* Right Box - Extras */}
-      <motion.div
-        className="w-full md:w-1/4 bg-white rounded-xl shadow-lg p-6 text-gray-800 font-sans"
-        initial={{ opacity: 0, x: 30 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-      >
-        <h2 className="text-xl font-semibold mb-4 border-b pb-2">
-          📌 Privacy Tips
-        </h2>
-        <p className="text-gray-700 mb-4">
-          Here you can add extra features or tips for your assistant. Maybe some
-          quick commands or info about the app.
-        </p>
-        <ul className="list-disc list-inside space-y-2 text-gray-700">
-          <li>Voice data is encrypted for security</li>
-          <li>clear your voice history anytime.</li>
-          <li>Turn off listening when not in use.</li>
-          <li>Only enable permissions for voice features.</li>
-          <li>Review and update your privacy settings regularly.</li>
-        </ul>
-      </motion.div>
+        {/* Conversation History */}
+        {conversationHistory.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">
+              💬 Conversation History
+            </h2>
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {conversationHistory.slice(-10).map((entry, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2 rounded-lg ${
+                    entry.type === 'user' 
+                      ? 'bg-blue-50 border-l-4 border-blue-500 ml-4' 
+                      : 'bg-green-50 border-l-4 border-green-500 mr-4'
+                  }`}
+                >
+                  <div className="text-xs text-gray-500 mb-1">
+                    {entry.type === 'user' ? '👤 You' : '🤖 Assistant'}
+                  </div>
+                  <div className="text-sm text-gray-800">{entry.text}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
